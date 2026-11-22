@@ -1,0 +1,19 @@
+Rebuilding playload-jit (the JavaScriptCore build)
+
+1. ICU 69.1 (github.com/unicode-org/icu, icu4c-69_1-src.tgz): build once for the PC (needed as --with-cross-build),
+   then for arm:  configure --host=arm-linux-gnueabihf --with-cross-build=<pc build> --enable-static --disable-shared
+                  --disable-tests --disable-samples --disable-extras --disable-tools --with-data-packaging=static
+   with CFLAGS/CXXFLAGS "-marm -mcpu=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard -O2 -fPIC".
+2. WebKit, tag webkitgtk-2.38.6 (the last line that still builds with the toolchain's GCC 8.3). Only Source/JavaScriptCore,
+   Source/WTF, Source/bmalloc, Source/cmake and Tools/Scripts are needed (git sparse-checkout). Two edits:
+     Source/cmake/OptionsJSCOnly.cmake   set(ENABLE_API_TESTS OFF), and drop the USE_CAPSTONE line
+     Source/JavaScriptCore/runtime/ArgList.h   add  #include "JSCast.h"  after "CallFrame.h"  (GCC 8 needs it)
+   cmake -G Ninja <WebKit> -DCMAKE_TOOLCHAIN_FILE=jsc-toolchain.cmake -DPORT=JSCOnly -DCMAKE_BUILD_TYPE=Release
+         -DENABLE_STATIC_JSC=ON -DENABLE_TOOLS=OFF -DENABLE_FTL_JIT=OFF -DENABLE_WEBASSEMBLY=OFF
+         -DENABLE_REMOTE_INSPECTOR=OFF -DUSE_SYSTEM_MALLOC=ON -DDEVELOPER_MODE=OFF -DICU_ROOT=<arm icu>
+   ninja JavaScriptCore        (about 20 minutes on two cores; needs ruby, perl, python3)
+   The code must be Thumb-2 (-mthumb, in the toolchain file): the ARMv7 JIT requires it.
+3. JSC=<that build dir> ICU=<arm icu> TC=<miyoomini-toolchain> ./build_miyoo_jsc.sh
+
+The result is a general armv7 hard-float JavaScriptCore (static library + C API headers in <build>/JavaScriptCore/Headers),
+usable by any other Miyoo program: see js_jsc.cpp for a complete small embedding.
